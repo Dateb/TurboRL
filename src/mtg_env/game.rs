@@ -1,10 +1,18 @@
 use crate::mtg_env::card::Card;
 use crate::mtg_env::player::Player;
 
+#[derive(Debug, PartialEq)]
+pub enum TurnPhase {
+    Draw,
+    Main1,
+    End
+}
+
 pub struct Game {
     player1: Player,
     player2: Player,
     is_player1_active: bool,
+    current_turn_phase: TurnPhase,
     pub done: bool
 }
 
@@ -14,6 +22,7 @@ impl Game {
             player1,
             player2,
             is_player1_active: true,
+            current_turn_phase: TurnPhase::Main1,
             done: false
         }
     }
@@ -28,13 +37,14 @@ impl Game {
         self.is_player1_active = true;
         self.done = false;
 
+        self.current_turn_phase = TurnPhase::Main1;
         self.player1.hand.clone()
     }
 
     pub fn step(&mut self) -> (Vec<Card>, i32, bool) {
-        if self.player1.library.is_empty() && self.player2.library.is_empty() {
+        if self.player1.library.is_empty() || self.player2.library.is_empty() {
             self.done = true;
-            println!("Game Over: Both players are out of cards.");
+            println!("Game Over: One player is out of cards.");
         }
 
         let active_player = if self.is_player1_active {
@@ -42,7 +52,19 @@ impl Game {
         } else {
             &mut self.player2
         };
-        active_player.take_turn();
+
+        while self.current_turn_phase != TurnPhase::End {
+            match self.current_turn_phase {
+                TurnPhase::Draw => {
+                    active_player.draw_card();
+                    self.current_turn_phase = TurnPhase::Main1
+                },
+                TurnPhase::Main1 => self.current_turn_phase = TurnPhase::End,
+                TurnPhase::End => {}
+            }
+        }
+
+        self.current_turn_phase = TurnPhase::Draw;
 
         self.is_player1_active = !self.is_player1_active;
 

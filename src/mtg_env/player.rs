@@ -17,23 +17,15 @@ impl Player {
         }
     }
 
-    pub fn draw_card(&mut self) -> Option<Card> {
-        self.library.pop()
+    pub fn draw_card(&mut self) -> () {
+        if let Some(card) = self.library.pop() {
+            self.hand.push(card);
+        }
     }
 
     pub fn draw_starting_hand(&mut self) -> () {
         for _ in 0..7 {
-            if let Some(card) = self.draw_card() {
-                self.hand.push(card);
-            }
-        }
-    }
-
-    pub fn take_turn(&mut self) {
-        if let Some(card) = self.draw_card() {
-            self.hand.push(card);
-        } else {
-            println!("No cards left to draw!");
+            self.draw_card();
         }
     }
 

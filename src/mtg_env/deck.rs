@@ -23,7 +23,7 @@ impl Deck {
         self.cards.pop()
     }
 
-    pub const fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.cards.is_empty()
     }
 }
