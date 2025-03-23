@@ -8,7 +8,8 @@ pub struct Player {
     pub deck: Deck,
     pub library: Deck,
     pub hand: Vec<Card>,
-    pub board_state: BoardState
+    pub board_state: BoardState,
+    pub life_points: i16
 }
 
 impl Player {
@@ -18,6 +19,7 @@ impl Player {
             library: deck,
             hand: Vec::new(),
             board_state: BoardState::new(),
+            life_points: 20
         }
     }
 

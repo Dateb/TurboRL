@@ -6,6 +6,7 @@ use crate::mtg_env::player::Player;
 pub enum TurnPhase {
     Draw,
     Main1,
+    Combat,
     End
 }
 
@@ -48,22 +49,35 @@ impl Game {
             println!("Game Over: One player is out of cards.");
         }
 
-        let active_player = if self.is_player1_active {
-            &mut self.player1
+        let (active_player, inactive_player) = if self.is_player1_active {
+            (&mut self.player1, &mut self.player2)
         } else {
-            &mut self.player2
+            (&mut self.player2, &mut self.player1)
         };
 
         while self.current_turn_phase != TurnPhase::End {
             match self.current_turn_phase {
                 TurnPhase::Draw => {
                     active_player.draw_card();
-                    self.current_turn_phase = TurnPhase::Main1
+                    self.current_turn_phase = TurnPhase::Main1;
                 },
                 TurnPhase::Main1 => {
                     active_player.play_card(action);
-                    self.current_turn_phase = TurnPhase::End
+                    self.current_turn_phase = TurnPhase::Combat;
                 },
+                TurnPhase::Combat => {
+                    inactive_player.life_points -=
+                        (active_player.board_state.get_creature_count() * 2) as i16;
+
+                    if inactive_player.life_points <= 0 {
+                        self.done = true;
+                        println!(
+                            "Game Over: One player has {:?} life points.",
+                            inactive_player.life_points
+                        );
+                    }
+                    self.current_turn_phase = TurnPhase::End;
+                }
                 TurnPhase::End => {}
             }
         }

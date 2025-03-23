@@ -13,4 +13,8 @@ impl BoardState {
             lands: vec![],
         }
     }
+
+    pub fn get_creature_count(&self) -> usize {
+        self.creatures.len()
+    }
 }
