@@ -1,16 +1,16 @@
+use crate::mtg_env::permanent::Permanent;
+
 #[derive(Debug, Clone)]
-pub enum PermanentType {
-    Land,
-    Creature
+pub struct BoardState {
+    pub creatures: Vec<Permanent>,
+    pub lands: Vec<Permanent>,
 }
 
-struct Permanent {
-    ptype: PermanentType,
-    power: i8,
-    toughness: i8
-}
-
-struct BoardState {
-    player1_permanents: Vec<Permanent>,
-    player2_permanents: Vec<Permanent>,
+impl BoardState {
+    pub fn new() -> Self {
+        Self {
+            creatures: vec![],
+            lands: vec![],
+        }
+    }
 }

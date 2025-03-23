@@ -1,3 +1,4 @@
+use crate::mtg_env::boardstate::BoardState;
 use crate::mtg_env::card::Card;
 use crate::mtg_env::player::Player;
 
@@ -41,7 +42,7 @@ impl Game {
         self.player1.hand.clone()
     }
 
-    pub fn step(&mut self) -> (Vec<Card>, i32, bool) {
+    pub fn step(&mut self, action: usize) -> ((Vec<Card>, BoardState), i32, bool) {
         if self.player1.library.is_empty() || self.player2.library.is_empty() {
             self.done = true;
             println!("Game Over: One player is out of cards.");
@@ -59,7 +60,10 @@ impl Game {
                     active_player.draw_card();
                     self.current_turn_phase = TurnPhase::Main1
                 },
-                TurnPhase::Main1 => self.current_turn_phase = TurnPhase::End,
+                TurnPhase::Main1 => {
+                    active_player.play_card(action);
+                    self.current_turn_phase = TurnPhase::End
+                },
                 TurnPhase::End => {}
             }
         }
@@ -69,7 +73,7 @@ impl Game {
         self.is_player1_active = !self.is_player1_active;
 
         (
-            active_player.hand.clone(),
+            (active_player.hand.clone(), active_player.board_state.clone()),
             0,
             self.done,
         )

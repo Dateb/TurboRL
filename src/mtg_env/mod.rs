@@ -2,6 +2,7 @@ mod player;
 mod game;
 mod card;
 mod deck;
+mod permanent;
 mod boardstate;
 
 use game::Game;
@@ -21,8 +22,8 @@ pub fn play_mtg() -> () {
     println!("Initial observation: {:?}", observation);
 
     while !game.done {
-        // let action = Some(0);
-        let observation = game.step();
+        let action = 0;
+        let observation = game.step(action);
         println!("Observation: {:?}", observation);
     }
 }
