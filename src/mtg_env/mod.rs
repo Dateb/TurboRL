@@ -4,6 +4,7 @@ mod card;
 mod deck;
 mod permanent;
 mod boardstate;
+mod observation;
 
 use game::Game;
 use player::Player;

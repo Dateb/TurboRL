@@ -1,5 +1,5 @@
-use crate::mtg_env::card::Card;
 use crate::mtg_env::player::Player;
+use crate::mtg_env::observation::Observation;
 
 #[derive(Debug, PartialEq)]
 pub enum TurnPhase {
@@ -26,7 +26,7 @@ impl Game {
         }
     }
 
-    pub fn reset(&mut self) -> Vec<Card> {
+    pub fn reset(&mut self) -> Observation {
         self.learning_player.reset();
         self.opponent_player.reset();
 
@@ -36,21 +36,15 @@ impl Game {
         self.done = false;
 
         self.current_turn_phase = TurnPhase::Main1;
-        self.learning_player.hand.clone()
+        Observation::new(self.learning_player.hand.clone())
     }
 
-    pub fn step(&mut self, action: usize) -> (Vec<Card>, i32, bool) {
+    pub fn step(&mut self, action: usize) -> (Observation, i32, bool) {
         self.player_turn(action);
         self.opponent_turn();
-        let obs = (
-            self.learning_player.hand.clone(),
-            0,
-            self.done,
-        );
-
         self.print_game_state();
 
-        obs
+        (Observation::new(self.learning_player.hand.clone()), 0, self.done)
     }
 
     fn player_turn(&mut self, action: usize) -> () {
