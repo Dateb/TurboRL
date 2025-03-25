@@ -63,8 +63,10 @@ impl Player {
     }
 
     pub fn reset(&mut self) {
+        self.life_points = 20;
         self.library = self.deck.clone();
         self.library.shuffle();
         self.hand.clear();
+        self.board_state = BoardState::new();
     }
 }

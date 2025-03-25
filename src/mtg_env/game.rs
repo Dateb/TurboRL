@@ -13,7 +13,8 @@ pub struct Game {
     learning_player: Player,
     opponent_player: Player,
     current_turn_phase: TurnPhase,
-    pub done: bool
+    pub done: bool,
+    pub current_reward: f32
 }
 
 impl Game {
@@ -22,11 +23,12 @@ impl Game {
             learning_player,
             opponent_player,
             current_turn_phase: TurnPhase::Main1,
-            done: false
+            done: false,
+            current_reward: 0.0
         }
     }
 
-    pub fn reset(&mut self) -> Observation {
+    pub fn reset(&mut self) -> (Observation, f32, bool) {
         self.learning_player.reset();
         self.opponent_player.reset();
 
@@ -34,17 +36,18 @@ impl Game {
         self.opponent_player.draw_starting_hand();
 
         self.done = false;
+        self.current_reward = 0.0;
 
         self.current_turn_phase = TurnPhase::Main1;
-        Observation::new(self.learning_player.hand.clone())
+        (Observation::new(self.learning_player.hand.clone()), 0.0, false)
     }
 
-    pub fn step(&mut self, action: usize) -> (Observation, i32, bool) {
+    pub fn step(&mut self, action: usize) -> (Observation, f32, bool) {
         self.player_turn(action);
         self.opponent_turn();
-        self.print_game_state();
+        // self.print_game_state();
 
-        (Observation::new(self.learning_player.hand.clone()), 0, self.done)
+        (Observation::new(self.learning_player.hand.clone()), self.current_reward, self.done)
     }
 
     fn player_turn(&mut self, action: usize) -> () {
@@ -52,6 +55,7 @@ impl Game {
 
         if self.opponent_player.life_points <= 0 {
             self.done = true;
+            self.current_reward = 1.0;
         }
     }
 
