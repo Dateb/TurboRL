@@ -13,10 +13,10 @@ pub fn play_mtg() -> () {
     let deck1 = Deck::new();
     let deck2 = Deck::new();
 
-    let player1 = Player::new(deck1);
-    let player2 = Player::new(deck2);
+    let learning_player = Player::new(deck1);
+    let opponent_player = Player::new(deck2);
 
-    let mut game = Game::new(player1, player2);
+    let mut game = Game::new(learning_player, opponent_player);
 
     game.reset();
 
