@@ -17,4 +17,8 @@ impl BoardState {
     pub fn get_creature_count(&self) -> usize {
         self.creatures.len()
     }
+
+    pub fn get_land_count(&self) -> usize {
+        self.lands.len()
+    }
 }

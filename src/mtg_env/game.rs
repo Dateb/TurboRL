@@ -71,10 +71,6 @@ impl Game {
 
                     if inactive_player.life_points <= 0 {
                         self.done = true;
-                        println!(
-                            "Game Over: One player has {:?} life points.",
-                            inactive_player.life_points
-                        );
                     }
                     self.current_turn_phase = TurnPhase::End;
                 }
@@ -86,10 +82,28 @@ impl Game {
 
         self.is_player1_active = !self.is_player1_active;
 
-        (
+        let obs = (
             (active_player.hand.clone(), active_player.board_state.clone()),
             0,
             self.done,
-        )
+        );
+
+        self.print_game_state();
+
+        obs
+    }
+
+    pub fn print_game_state(&mut self) -> () {
+        println!("{}", "/".repeat(100));
+
+        println!("{}", self.player2.life_points);
+        println!("{:?}", self.player2.hand);
+        println!("{}", "P".repeat(self.player2.board_state.get_land_count()));
+        println!("{}", "S".repeat(self.player2.board_state.get_creature_count()));
+        println!("{}", "-".repeat(100));
+        println!("{}", "S".repeat(self.player1.board_state.get_creature_count()));
+        println!("{}", "P".repeat(self.player1.board_state.get_land_count()));
+        println!("{:?}", self.player1.hand);
+        println!("{}", self.player1.life_points);
     }
 }

@@ -18,12 +18,10 @@ pub fn play_mtg() -> () {
 
     let mut game = Game::new(player1, player2);
 
-    let observation = game.reset();
-    println!("Initial observation: {:?}", observation);
+    game.reset();
 
     while !game.done {
         let action = 0;
-        let observation = game.step(action);
-        println!("Observation: {:?}", observation);
+        game.step(action);
     }
 }
