@@ -1,3 +1,4 @@
+use rand::Rng;
 use crate::mtg_env::player::Player;
 use crate::mtg_env::observation::Observation;
 
@@ -14,7 +15,8 @@ pub struct Game {
     opponent_player: Player,
     current_turn_phase: TurnPhase,
     pub done: bool,
-    pub current_reward: f32
+    pub current_reward: f32,
+    is_learning_player_first: bool
 }
 
 impl Game {
@@ -24,13 +26,17 @@ impl Game {
             opponent_player,
             current_turn_phase: TurnPhase::Main1,
             done: false,
-            current_reward: 0.0
+            current_reward: 0.0,
+            is_learning_player_first: false,
         }
     }
 
     pub fn reset(&mut self) -> (Observation, f32, bool) {
         self.learning_player.reset();
         self.opponent_player.reset();
+
+        let mut rng = rand::thread_rng();
+        self.is_learning_player_first = rng.gen_bool(0.5);
 
         self.learning_player.draw_starting_hand();
         self.opponent_player.draw_starting_hand();
@@ -39,32 +45,54 @@ impl Game {
         self.current_reward = 0.0;
 
         self.current_turn_phase = TurnPhase::Main1;
-        (Observation::new(self.learning_player.hand.clone()), 0.0, false)
+        (
+            Observation::new(self.learning_player.hand.clone(), self.learning_player.life_points),
+            0.0,
+            false
+        )
     }
 
     pub fn step(&mut self, action: usize) -> (Observation, f32, bool) {
-        self.player_turn(action);
-        self.opponent_turn();
+        if self.is_learning_player_first {
+            self.player_turn(action);
+            if self.opponent_player.life_points <= 0 {
+                self.done = true;
+                self.current_reward = 1.0;
+            } else {
+                self.opponent_turn();
+                if self.learning_player.life_points <= 0 {
+                    self.done = true;
+                    self.current_reward = 0.0;
+                }
+            }
+        } else {
+            self.opponent_turn();
+            if self.learning_player.life_points <= 0 {
+                self.done = true;
+                self.current_reward = 0.0;
+            } else {
+                self.player_turn(action);
+                if self.opponent_player.life_points <= 0 {
+                    self.done = true;
+                    self.current_reward = 1.0;
+                }
+            }
+        }
         // self.print_game_state();
 
-        (Observation::new(self.learning_player.hand.clone()), self.current_reward, self.done)
+        (
+            Observation::new(self.learning_player.hand.clone(), self.learning_player.life_points),
+            self.current_reward,
+            self.done
+        )
     }
 
     fn player_turn(&mut self, action: usize) -> () {
         execute_turn(action, &mut self.learning_player, &mut self.opponent_player);
-
-        if self.opponent_player.life_points <= 0 {
-            self.done = true;
-            self.current_reward = 1.0;
-        }
     }
 
     fn opponent_turn(&mut self) -> () {
         execute_turn(0, &mut self.opponent_player, &mut self.learning_player);
-
-        if self.learning_player.life_points <= 0 {
-            self.done = true;
-        }
     }
 
     pub fn print_game_state(&mut self) -> () {
@@ -96,7 +124,7 @@ fn execute_turn(action: usize, active_player: &mut Player, inactive_player: &mut
             },
             TurnPhase::Combat => {
                 inactive_player.life_points -=
-                    (active_player.board_state.get_creature_count() * 2) as i16;
+                    (active_player.board_state.get_creature_count() * 2) as i32;
 
                 current_turn_phase = TurnPhase::End;
             }

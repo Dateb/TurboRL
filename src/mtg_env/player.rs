@@ -9,7 +9,7 @@ pub struct Player {
     pub library: Deck,
     pub hand: Vec<Card>,
     pub board_state: BoardState,
-    pub life_points: i16
+    pub life_points: i32
 }
 
 impl Player {

@@ -11,7 +11,7 @@ pub struct Deck {
 impl Deck {
     pub fn new() -> Deck {
         Self {
-            cards: [vec![Card::Plains; 20], vec![Card::SavannahLion; 40]].concat()
+            cards: [vec![Card::Plains; 50], vec![Card::SavannahLion; 10]].concat()
         }
     }
 
