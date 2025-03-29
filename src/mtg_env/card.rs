@@ -1,5 +1,5 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Card {
-    SavannahLion = 1,
-    Plains = 2,
+    SavannahLion = 0,
+    Plains = 1,
 }

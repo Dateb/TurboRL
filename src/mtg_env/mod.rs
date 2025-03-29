@@ -8,10 +8,12 @@ mod deck;
 mod permanent;
 mod boardstate;
 mod observation;
+mod hand;
 
 use game::Game;
 use player::Player;
 use deck::Deck;
+use crate::mtg_env::observation::Observation;
 
 pub async fn play_mtg() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = "89f9b3ae8db7bbef2a013956b8bb49e683d5330b".to_string();
@@ -30,10 +32,10 @@ pub async fn play_mtg() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Parameters for value iteration
-    let mut value_function: HashMap<([i32; 8], usize), f32> = HashMap::new();
+    let mut value_function: HashMap<([i32; Observation::SIZE], usize), f32> = HashMap::new();
     let discount_factor = 0.9;
     let learning_rate = 0.1;
-    let num_actions = 7;
+    let num_actions = 2;
     let n_total_steps = 50000000;
     let mut total_wins = 0.0;
     let mut total_games = 0;
@@ -47,6 +49,8 @@ pub async fn play_mtg() -> Result<(), Box<dyn std::error::Error>> {
     let mut game = Game::new(learning_player, opponent_player);
     let (mut observation, _, _) = game.reset();
     let mut current_state = observation.raw_array;
+
+    let mut win_rate = 0.0;
 
     for _ in 0..n_total_steps {
         let action = select_action(&current_state, &value_function, num_actions);
@@ -64,7 +68,7 @@ pub async fn play_mtg() -> Result<(), Box<dyn std::error::Error>> {
             total_wins += reward;
             total_games += 1;
 
-            let win_rate = total_wins / total_games as f32;
+            win_rate = (1.0 - 0.0001) * win_rate + 0.0001 * reward;
 
             if total_games % 10000 == 0 {
                 println!("Game {} finished! Current winrate: {}", total_games, win_rate);
@@ -87,7 +91,11 @@ pub async fn play_mtg() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // Action selection function
-fn select_action(state: &[i32; 8], value_function: &HashMap<([i32; 8], usize), f32>, num_actions: usize) -> usize {
+fn select_action(
+    state: &[i32; Observation::SIZE],
+    value_function: &HashMap<([i32; Observation::SIZE], usize), f32>,
+    num_actions: usize
+) -> usize {
     // Example: Epsilon-greedy action selection.
     let epsilon = 0.1;
     if rand::random::<f64>() < epsilon {
@@ -101,7 +109,7 @@ fn select_action(state: &[i32; 8], value_function: &HashMap<([i32; 8], usize), f
             let state_action_value = value_function
                 .get(&(state.clone(), action))
                 .copied()
-                .unwrap_or(0.0); // Default value 0.0 if no value is found
+                .unwrap_or(1.0); // Default value 0.0 if no value is found
 
             if state_action_value > max_value {
                 max_value = state_action_value;

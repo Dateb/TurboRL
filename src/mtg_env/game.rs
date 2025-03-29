@@ -16,7 +16,8 @@ pub struct Game {
     current_turn_phase: TurnPhase,
     pub done: bool,
     pub current_reward: f32,
-    is_learning_player_first: bool
+    is_learning_player_first: bool,
+    has_game_started: bool,
 }
 
 impl Game {
@@ -28,6 +29,7 @@ impl Game {
             done: false,
             current_reward: 0.0,
             is_learning_player_first: false,
+            has_game_started: false,
         }
     }
 
@@ -37,22 +39,51 @@ impl Game {
 
         let mut rng = rand::thread_rng();
         self.is_learning_player_first = rng.gen_bool(0.5);
+        self.has_game_started = false;
 
-        self.learning_player.draw_starting_hand();
-        self.opponent_player.draw_starting_hand();
+        self.learning_player.draw_n_cards(7);
+        self.opponent_player.draw_n_cards(7);
 
         self.done = false;
         self.current_reward = 0.0;
 
         self.current_turn_phase = TurnPhase::Main1;
         (
-            Observation::new(self.learning_player.hand.clone(), self.learning_player.life_points),
+            Observation::new(
+                self.learning_player.hand.clone(),
+                self.learning_player.life_points,
+                self.opponent_player.life_points,
+                self.has_game_started,
+            ),
             0.0,
             false
         )
     }
 
     pub fn step(&mut self, action: usize) -> (Observation, f32, bool) {
+        if self.has_game_started {
+            self.play_turn(action);
+        } else {
+            if action == 0 && self.learning_player.hand.size > 0 {
+                self.learning_player.take_mulligan()
+            } else {
+                self.has_game_started = true;
+            }
+        }
+
+        (
+            Observation::new(
+                self.learning_player.hand.clone(),
+                self.learning_player.life_points,
+                self.opponent_player.life_points,
+                self.has_game_started
+            ),
+            self.current_reward,
+            self.done
+        )
+    }
+
+    fn play_turn(&mut self, action: usize) {
         if self.is_learning_player_first {
             self.player_turn(action);
             if self.opponent_player.life_points <= 0 {
@@ -78,13 +109,6 @@ impl Game {
                 }
             }
         }
-        // self.print_game_state();
-
-        (
-            Observation::new(self.learning_player.hand.clone(), self.learning_player.life_points),
-            self.current_reward,
-            self.done
-        )
     }
 
     fn player_turn(&mut self, action: usize) -> () {
@@ -92,7 +116,10 @@ impl Game {
     }
 
     fn opponent_turn(&mut self) -> () {
-        execute_turn(0, &mut self.opponent_player, &mut self.learning_player);
+        let n_actions = 2;
+        let mut rng = rand::thread_rng();
+        let random_action = rng.gen_range(0..n_actions);
+        execute_turn(random_action, &mut self.opponent_player, &mut self.learning_player);
     }
 
     pub fn print_game_state(&mut self) -> () {
