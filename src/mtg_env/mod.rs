@@ -1,122 +1,171 @@
-use std::collections::HashMap;
-use wandb::{BackendOptions, RunInfo, WandB};
+use rand::Rng;
 
-mod player;
-mod game;
+mod boardstate;
 mod card;
 mod deck;
-mod permanent;
-mod boardstate;
-mod observation;
+use crate::mtg_env::deck::Deck;
 mod hand;
+pub mod observation;
+pub use crate::mtg_env::observation::Observation;
+mod permanent;
+mod player;
+use crate::mtg_env::player::Player;
 
-use game::Game;
-use player::Player;
-use deck::Deck;
-use crate::mtg_env::observation::Observation;
+#[derive(Debug, PartialEq)]
+pub enum TurnPhase {
+    Draw,
+    Main1,
+    Combat,
+    End
+}
 
-pub async fn play_mtg() -> Result<(), Box<dyn std::error::Error>> {
-    let api_key = "89f9b3ae8db7bbef2a013956b8bb49e683d5330b".to_string();
-    let wandb = WandB::new(BackendOptions::new(api_key));
+pub struct Game {
+    learning_player: Player,
+    opponent_player: Player,
+    current_turn_phase: TurnPhase,
+    pub done: bool,
+    pub current_reward: f32,
+    is_learning_player_first: bool,
+    has_game_started: bool,
+}
 
-    let run = wandb
-        .new_run(
-            RunInfo::new("RL_mtg_learning")
-                .entity("mtg-sim-team")
-                .name(format!(
-                    "test-{}",
-                    std::time::UNIX_EPOCH.elapsed().unwrap().as_millis()
-                ))
-                .build()?,
-        )
-        .await?;
+impl Game {
+    pub fn new() -> Self {
+        let deck1 = Deck::new();
+        let deck2 = Deck::new();
+        let learning_player = Player::new(deck1);
+        let opponent_player = Player::new(deck2);
 
-    // Parameters for value iteration
-    let mut value_function: HashMap<([i32; Observation::SIZE], usize), f32> = HashMap::new();
-    let discount_factor = 0.9;
-    let learning_rate = 0.1;
-    let num_actions = 2;
-    let n_total_steps = 50000000;
-    let mut total_wins = 0.0;
-    let mut total_games = 0;
-
-    // Initialize decks and players
-    let deck1 = Deck::new();
-    let deck2 = Deck::new();
-    let learning_player = Player::new(deck1);
-    let opponent_player = Player::new(deck2);
-
-    let mut game = Game::new(learning_player, opponent_player);
-    let (mut observation, _, _) = game.reset();
-    let mut current_state = observation.raw_array;
-
-    let mut win_rate = 0.0;
-
-    for _ in 0..n_total_steps {
-        let action = select_action(&current_state, &value_function, num_actions);
-        let (next_observation, mut reward, mut done) = game.step(action);
-
-        let next_state = next_observation.raw_array;
-        // Update value function (simple Bellman equation)
-        let max_next_value = (0..num_actions)
-            .map(|a| value_function.get(&(next_state, a)).copied().unwrap_or(0.0))
-            .fold(f32::NEG_INFINITY, f32::max);
-        let current_value = value_function.entry((current_state, action)).or_insert(0.0);
-        *current_value += learning_rate * (reward + discount_factor * max_next_value - *current_value);
-
-        if done {
-            total_wins += reward;
-            total_games += 1;
-
-            win_rate = (1.0 - 0.0001) * win_rate + 0.0001 * reward;
-
-            if total_games % 10000 == 0 {
-                println!("Game {} finished! Current winrate: {}", total_games, win_rate);
-                run.log((
-                    ("_step", total_games),
-                    ("Win Rate", win_rate),
-                ))
-                    .await;
-            }
-
-            (observation, reward, done) = game.reset();
-            current_state = observation.raw_array;
-        } else {
-            current_state = next_state;
+        Self {
+            learning_player,
+            opponent_player,
+            current_turn_phase: TurnPhase::Main1,
+            done: false,
+            current_reward: 0.0,
+            is_learning_player_first: false,
+            has_game_started: false,
         }
     }
 
-    println!("Final Reward: {:?}", game.current_reward);
-    Ok(())
-}
+    pub fn reset(&mut self) -> (Observation, f32, bool) {
+        self.learning_player.reset();
+        self.opponent_player.reset();
 
-// Action selection function
-fn select_action(
-    state: &[i32; Observation::SIZE],
-    value_function: &HashMap<([i32; Observation::SIZE], usize), f32>,
-    num_actions: usize
-) -> usize {
-    // Example: Epsilon-greedy action selection.
-    let epsilon = 0.1;
-    if rand::random::<f64>() < epsilon {
-        rand::random::<usize>() % num_actions
-    } else {
-        let mut max_value = f32::NEG_INFINITY;
-        let mut best_action = 0;
+        let mut rng = rand::thread_rng();
+        self.is_learning_player_first = rng.gen_bool(0.5);
+        self.has_game_started = false;
 
-        for action in 0..num_actions {
-            // Look up value in the value function map
-            let state_action_value = value_function
-                .get(&(state.clone(), action))
-                .copied()
-                .unwrap_or(1.0); // Default value 0.0 if no value is found
+        self.learning_player.draw_n_cards(7);
+        self.opponent_player.draw_n_cards(7);
 
-            if state_action_value > max_value {
-                max_value = state_action_value;
-                best_action = action;
+        self.done = false;
+        self.current_reward = 0.0;
+
+        self.current_turn_phase = TurnPhase::Main1;
+
+        self.get_step_feedback()
+    }
+
+    pub fn step(&mut self, action: usize) -> (Observation, f32, bool) {
+        if self.has_game_started {
+            self.play_turn(action);
+        } else {
+            if action == 0 && self.learning_player.hand.size > 0 {
+                self.learning_player.take_mulligan()
+            } else {
+                self.has_game_started = true;
             }
         }
 
-        best_action
+        self.get_step_feedback()
+    }
+
+    fn play_turn(&mut self, action: usize) {
+        if self.is_learning_player_first {
+            self.player_turn(action);
+            if self.opponent_player.life_points <= 0 {
+                self.done = true;
+                self.current_reward = 1.0;
+            } else {
+                self.opponent_turn();
+                if self.learning_player.life_points <= 0 {
+                    self.done = true;
+                    self.current_reward = 0.0;
+                }
+            }
+        } else {
+            self.opponent_turn();
+            if self.learning_player.life_points <= 0 {
+                self.done = true;
+                self.current_reward = 0.0;
+            } else {
+                self.player_turn(action);
+                if self.opponent_player.life_points <= 0 {
+                    self.done = true;
+                    self.current_reward = 1.0;
+                }
+            }
+        }
+    }
+
+    fn player_turn(&mut self, action: usize) -> () {
+        execute_turn(action, &mut self.learning_player, &mut self.opponent_player);
+    }
+
+    fn opponent_turn(&mut self) -> () {
+        let n_actions = 2;
+        let mut rng = rand::thread_rng();
+        let random_action = rng.gen_range(0..n_actions);
+        execute_turn(random_action, &mut self.opponent_player, &mut self.learning_player);
+    }
+
+    pub fn print_game_state(&mut self) -> () {
+        println!("{}", "/".repeat(100));
+
+        println!("{}", self.opponent_player.life_points);
+        println!("{:?}", self.opponent_player.hand);
+        println!("{}", "P".repeat(self.opponent_player.board_state.get_land_count()));
+        println!("{}", "S".repeat(self.opponent_player.board_state.get_creature_count()));
+        println!("{}", "-".repeat(100));
+        println!("{}", "S".repeat(self.learning_player.board_state.get_creature_count()));
+        println!("{}", "P".repeat(self.learning_player.board_state.get_land_count()));
+        println!("{:?}", self.learning_player.hand);
+        println!("{}", self.learning_player.life_points);
+    }
+
+    fn get_step_feedback(&mut self) -> (Observation, f32, bool) {
+        (
+            Observation::new(
+                self.learning_player.hand.clone(),
+                self.learning_player.life_points,
+                self.opponent_player.life_points,
+                self.has_game_started
+            ),
+            self.current_reward,
+            self.done
+        )
+    }
+}
+
+fn execute_turn(action: usize, active_player: &mut Player, inactive_player: &mut Player) -> () {
+    let mut current_turn_phase = TurnPhase::Draw;
+    while current_turn_phase != TurnPhase::End {
+        match current_turn_phase {
+            TurnPhase::Draw => {
+                active_player.draw_card();
+                current_turn_phase = TurnPhase::Main1;
+            },
+            TurnPhase::Main1 => {
+                active_player.play_card(action);
+                current_turn_phase = TurnPhase::Combat;
+            },
+            TurnPhase::Combat => {
+                inactive_player.life_points -=
+                    (active_player.board_state.get_creature_count() * 2) as i32;
+
+                current_turn_phase = TurnPhase::End;
+            }
+            TurnPhase::End => {}
+        }
     }
 }
